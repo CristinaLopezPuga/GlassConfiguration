@@ -2,7 +2,9 @@ import subprocess
 import re
 from collections import defaultdict
 import argparse
-
+import shutil
+import time
+import os
 
 def read_compounds(file_path):
     with open(file_path, 'r') as file:
@@ -68,6 +70,13 @@ def run_fortran_executable(composition, fortran_executable, total_atoms, random_
     # Prepare the element symbols and number of ions
     element_symbols = " ".join(f"{elem:6}" for elem in composition.keys())
     number_of_ions = " ".join(f"{int(count):6}" for count in composition.values())
+    
+    # Create a unique name for the output file
+    timestamp = time.strftime("%H%M%S")
+    unique_filename = f"lammps-in_{timestamp}.dat"
+    
+    # Check if the file exists and rename it if necessary
+    shutil.move('lammps-in.dat', unique_filename)
     
     # Run the Fortran executable
     try:
