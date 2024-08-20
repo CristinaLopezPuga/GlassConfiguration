@@ -1,50 +1,46 @@
-import subprocess
-import re
-from collections import defaultdict
 import argparse
+import re
+import subprocess
 import shutil
-import time
 import os
+import time
+from collections import defaultdict
 
 def read_compounds(file_path):
     with open(file_path, 'r') as file:
-        # Read all lines from the file
         lines = file.readlines()
     
-    # Parse the first line for compounds
     compounds_line = lines[0].strip()
     compounds = compounds_line.split()
     
-    # Parse the remaining lines for molar ratios
     molar_ratios_per_composition = []
+    densities_per_composition = []
     for line in lines[1:]:
-        ratios = line.split()
-        molar_ratios = [float(ratio) for ratio in ratios if ratio]
-        molar_ratios_per_composition.append(molar_ratios)
+        parts = line.split()
+        ratios = [float(ratio) for ratio in parts[:-1] if ratio]
+        density = float(parts[-1])
+        molar_ratios_per_composition.append(ratios)
+        densities_per_composition.append(density)
     
-    # Lists to store elements and stoichiometric proportions
     element_lists = []
     proportions_lists = []
 
-    # Regular expression to match element symbols and their numbers
     element_pattern = re.compile(r'([A-Z][a-z]?)(\d*)')
 
     for compound in compounds:
         elements = []
         proportions = []
 
-        # Find all matches in the compound
         matches = element_pattern.findall(compound)
         
         for symbol, number in matches:
             elements.append(symbol)
             proportions.append(int(number) if number else 1)
         
-        # Append the lists to the result lists
         element_lists.append(elements)
         proportions_lists.append(proportions)
     
-    return element_lists, proportions_lists, molar_ratios_per_composition
+    return element_lists, proportions_lists, molar_ratios_per_composition, densities_per_composition
 
 def calculate_atoms(total_atoms, element_lists, proportions_lists, molar_ratios_per_composition):
     compositions = []
@@ -57,26 +53,21 @@ def calculate_atoms(total_atoms, element_lists, proportions_lists, molar_ratios_
             total_proportions = sum(proportions)
             
             for element, proportion in zip(elements, proportions):
-                # Calculate the number of atoms for each element in this compound
                 element_atoms = num_atoms_compound * (proportion / total_proportions)
                 element_counts[element] += element_atoms
 
-        # Round the results to the nearest integer
         compositions.append({element: round(count) for element, count in element_counts.items()})
 
     return compositions
 
-def run_fortran_executable(composition, fortran_executable, total_atoms, random_integer=42, title="Simulation Run 1", glass_density=2.45, cubic_unit_cell="Y"):
+def run_fortran_executable(composition, fortran_executable, total_atoms, density, random_integer=42, title="Simulation Run 1", cubic_unit_cell="Y"):
     # Prepare the element symbols and number of ions
     element_symbols = " ".join(f"{elem:6}" for elem in composition.keys())
     number_of_ions = " ".join(f"{int(count):6}" for count in composition.values())
     
-    # Create a unique name for the output file
-    timestamp = time.strftime("%H%M%S")
+    # Create a unique name for the output file using the current time
+    timestamp = time.strftime("%H%M%S")  # Format time as HourMinuteSecond
     unique_filename = f"lammps-in_{timestamp}.dat"
-    
-    # Check if the file exists and rename it if necessary
-    shutil.move('lammps-in.dat', unique_filename)
     
     # Run the Fortran executable
     try:
@@ -89,7 +80,7 @@ def run_fortran_executable(composition, fortran_executable, total_atoms, random_
         )
 
         # Provide the inputs
-        input_data = f"{random_integer}\n{title}\n{element_symbols}\n{number_of_ions}\n{glass_density}\n{cubic_unit_cell}\n"
+        input_data = f"{random_integer}\n{title}\n{element_symbols}\n{number_of_ions}\n{density}\n{cubic_unit_cell}\n"
         stdout, stderr = process.communicate(input=input_data)
 
         # Print the output
@@ -100,13 +91,16 @@ def run_fortran_executable(composition, fortran_executable, total_atoms, random_
             print("Standard Error:")
             print(stderr)
 
+        # Rename the output file to a unique name
+        shutil.move('lammps-in.dat', unique_filename)
+
     except subprocess.CalledProcessError as e:
         print(f"An error occurred while running the executable: {e}")
         print(f"Return Code: {e.returncode}")
         print(f"Error Output: {e.stderr}")
 
+
 def parse_args():
-    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description='Process compounds with stoichiometric proportions.')
     parser.add_argument('file_path', type=str, help='Path to the input file containing compounds')
     parser.add_argument('total_atoms', type=int, help='Total number of atoms in the glass')
@@ -114,19 +108,14 @@ def parse_args():
     return parser.parse_args()
 
 def main():
-    # Parse arguments
     args = parse_args()
     
-    # Read and process the compounds from the file
-    element_lists, proportions_lists, molar_ratios_per_composition = read_compounds(args.file_path)
-    
-    # Calculate the number of atoms for each element for each composition
+    element_lists, proportions_lists, molar_ratios_per_composition, densities_per_composition = read_compounds(args.file_path)
     compositions = calculate_atoms(args.total_atoms, element_lists, proportions_lists, molar_ratios_per_composition)
     
-    # Run the Fortran executable for each composition
-    for i, composition in enumerate(compositions, 1):
+    for i, (composition, density) in enumerate(zip(compositions, densities_per_composition), 1):
         print(f"\nRunning Fortran executable for Composition {i}:")
-        run_fortran_executable(composition, args.fortran_executable, args.total_atoms)
+        run_fortran_executable(composition, args.fortran_executable, args.total_atoms, density)
 
 if __name__ == "__main__":
     main()
