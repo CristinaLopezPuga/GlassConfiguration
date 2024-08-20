@@ -1,15 +1,8 @@
 import subprocess
-import argparse
 import re
 from collections import defaultdict
+import argparse
 
-
-def parse_args():
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(description='Process compounds with stoichiometric proportions.')
-    parser.add_argument('file_path', type=str, help='Path to the input file containing compounds')
-    parser.add_argument('total_atoms',type=int,help='Total number of atoms in the structure.')
-    return parser.parse_args()
 
 def read_compounds(file_path):
     with open(file_path, 'r') as file:
@@ -103,9 +96,13 @@ def run_fortran_executable(composition, fortran_executable, total_atoms, random_
         print(f"Return Code: {e.returncode}")
         print(f"Error Output: {e.stderr}")
 
-
-
-
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(description='Process compounds with stoichiometric proportions.')
+    parser.add_argument('file_path', type=str, help='Path to the input file containing compounds')
+    parser.add_argument('total_atoms', type=int, help='Total number of atoms in the glass')
+    parser.add_argument('fortran_executable', type=str, help='Path to the Fortran executable')
+    return parser.parse_args()
 
 def main():
     # Parse arguments
@@ -117,9 +114,10 @@ def main():
     # Calculate the number of atoms for each element for each composition
     compositions = calculate_atoms(args.total_atoms, element_lists, proportions_lists, molar_ratios_per_composition)
     
-    # Print the results
+    # Run the Fortran executable for each composition
     for i, composition in enumerate(compositions, 1):
-        print(f"Composition {i}:", composition)
+        print(f"\nRunning Fortran executable for Composition {i}:")
+        run_fortran_executable(composition, args.fortran_executable, args.total_atoms)
 
-
-
+if __name__ == "__main__":
+    main()
