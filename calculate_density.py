@@ -52,7 +52,7 @@ def main():
         densities.append(density)
 
     # Add the densities to the DataFrame as a new column
-    df['Density (g/cm^3)'] = densities
+    df['density'] = densities
 
     # Save the updated DataFrame back to the same CSV file
     df.to_csv(csv_file_path, index=False)
