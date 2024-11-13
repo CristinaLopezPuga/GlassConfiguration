@@ -6,25 +6,34 @@ import os
 import time
 from collections import defaultdict
 
+import csv
+import re
+from collections import defaultdict
+
 def read_compounds(file_path):
     with open(file_path, 'r') as file:
-        lines = file.readlines()
+        reader = csv.reader(file)
+        lines = list(reader)
     
-    compounds_line = lines[0].strip()
-    compounds = compounds_line.split()
+    # Read the first line as the compound names
+    compounds_line = lines[0]
+    compounds = [compound.strip() for compound in compounds_line if compound]
     
+    # Initialize lists for molar ratios and densities
     molar_ratios_per_composition = []
     densities_per_composition = []
+    
+    # Read the rest of the lines for molar ratios and densities
     for line in lines[1:]:
-        parts = line.split()
-        ratios = [float(ratio) for ratio in parts[:-1] if ratio]
-        density = float(parts[-1])
+        ratios = [float(value) for value in line[:-1]]
+        density = float(line[-1])
         molar_ratios_per_composition.append(ratios)
         densities_per_composition.append(density)
     
+    # Extract elements and proportions from the compound names
     element_lists = []
     proportions_lists = []
-
+    
     element_pattern = re.compile(r'([A-Z][a-z]?)(\d*)')
 
     for compound in compounds:
@@ -41,6 +50,7 @@ def read_compounds(file_path):
         proportions_lists.append(proportions)
     
     return element_lists, proportions_lists, molar_ratios_per_composition, densities_per_composition
+
 
 def calculate_atoms(total_atoms, element_lists, proportions_lists, molar_ratios_per_composition):
     compositions = []
@@ -60,15 +70,20 @@ def calculate_atoms(total_atoms, element_lists, proportions_lists, molar_ratios_
 
     return compositions
 
+# Global counter to track the consecutive number
+file_counter = 1
+
 def run_fortran_executable(composition, fortran_executable, total_atoms, density, random_integer=42, title="Simulation Run 1", cubic_unit_cell="Y"):
+    global file_counter
+
     # Prepare the element symbols and number of ions
     element_symbols = " ".join(f"{elem:6}" for elem in composition.keys())
     number_of_ions = " ".join(f"{int(count):6}" for count in composition.values())
     
-    # Create a unique name for the output file using the current time
-    timestamp = time.strftime("%H%M%S")  # Format time as HourMinuteSecond
-    unique_filename = f"lammps-in_{timestamp}.dat"
-    
+    # Create a unique name for the output file using a consecutive number
+    unique_filename = f"lammps-in_{file_counter}.dat"
+    file_counter += 1  # Increment the counter for the next file
+
     # Run the Fortran executable
     try:
         process = subprocess.Popen(
